@@ -61,9 +61,12 @@
     NSMutableArray *colors = NSMutableArray.new;
     CGFloat locations[self.colorStops.count];
     for (JAMSVGGradientColorStop *stop in self.colorStops) {
-        [colors addObject:(id)stop.color.CGColor];
-        CGFloat location = ((JAMSVGGradientColorStop *)self.colorStops[[self.colorStops indexOfObject:stop]]).position;
-        locations[[self.colorStops indexOfObject:stop]] = location;
+        id color = (id) stop.color.CGColor;
+        if (color) {
+            [colors addObject:color];
+            CGFloat location = ((JAMSVGGradientColorStop *) self.colorStops[[self.colorStops indexOfObject:stop]]).position;
+            locations[[self.colorStops indexOfObject:stop]] = location;
+        }
     }
     CGGradientRef gradient = CGGradientCreateWithColors(colorSpace, (__bridge CFMutableArrayRef)colors, locations);
     

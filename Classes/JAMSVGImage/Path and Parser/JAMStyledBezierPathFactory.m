@@ -42,7 +42,7 @@
 - (id)init
 {
     if (!(self = [super init])) return nil;
-    
+
     self.gradients = NSMutableArray.new;
     self.affineTransformStack = NSMutableArray.new;
     self.groupAppearanceStack = NSMutableArray.new;
@@ -53,25 +53,25 @@
 {
     if ([elementName isEqualToString:@"circle"])
         return [self circleWithAttributes:attributes];
-    
+
     if ([elementName isEqualToString:@"ellipse"])
         return [self ellipseWithAttributes:attributes];
-    
+
     if ([elementName isEqualToString:@"rect"])
         return [self rectWithAttributes:attributes];
-    
+
     if ([elementName isEqualToString:@"path"])
         return [self pathWithAttributes:attributes];
-    
+
     if ([elementName isEqualToString:@"polyline"])
         return [self polyWithAttributes:attributes closed:NO];
-    
+
     if ([elementName isEqualToString:@"polygon"])
         return [self polyWithAttributes:attributes closed:YES];
-    
+
     if ([elementName isEqualToString:@"line"])
         return [self lineWithAttributes:attributes];
-    
+
     if ([elementName isEqualToString:@"linearGradient"]) {
         [self saveLinearGradient:attributes];
         return nil;
@@ -152,15 +152,15 @@
             return CGRectMake(0, 0, 256, 256);
         }
     }
-    
+
     CGFloat xPosition, yPosition, width, height;
     NSScanner *viewBoxScanner = [NSScanner scannerWithString:attributes[@"viewBox"]];
-    
+
     [viewBoxScanner scanCGFloat:&xPosition];
     [viewBoxScanner scanCGFloat:&yPosition];
     [viewBoxScanner scanCGFloat:&width];
     [viewBoxScanner scanCGFloat:&height];
-    
+
     return CGRectMake(xPosition, yPosition, width, height);
 }
 
@@ -280,11 +280,11 @@
 - (NSDictionary *)attributesByApplyingStyleAttributeToAttributes:(NSDictionary *)attributes;
 {
     if (!attributes[@"style"]) { return attributes; }
-    
+
     // These attributes come via the "style" attribute rather than directly attached to the path.
     NSMutableDictionary *appliedAttributes = attributes.mutableCopy;
     NSScanner *attributeNameScanner = [NSScanner scannerWithString:attributes[@"style"]];
-    
+
     while (!attributeNameScanner.isAtEnd) {
         NSString *attributeName;
         NSString *attributeValue;
@@ -317,7 +317,7 @@
     }
     attributes = [self attributesByAddingGroupAttributesToAttributes:attributes];
     attributes = [self attributesByApplyingStyleAttributeToAttributes:attributes];
-    
+
     NSString *fillColorString = ((NSString *)attributes[@"fill"]).lowercaseString;
     NSString *strokeColorString = ((NSString *)attributes[@"stroke"]).lowercaseString;
     NSString *fillColorStringValue = self.webColors[fillColorString];
@@ -325,7 +325,37 @@
     UIColor *fillColor = fillColorStringValue ? [UIColor colorFromString:fillColorStringValue] : [attributes fillColorForKey:@"fill"];
     UIColor *strokeColor = strokeColorStringValue ? [UIColor colorFromString:strokeColorStringValue] : [attributes strokeColorForKey:@"stroke"];
     CGFloat strokeWidth = [attributes strokeWeightForKey:@"stroke-width"];
-    
+
+    CGFloat radiusXPixels = [attributes floatForKey:@"rx"];
+    CGFloat radiusYPixels = [attributes floatForKey:@"ry"];
+    if (radiusXPixels > 0 || radiusYPixels > 0) {
+        CGMutablePathRef mutablePath = CGPathCreateMutable();
+        if( radiusXPixels > 0 && radiusYPixels == 0 ) {// if RY unspecified, make it equal to RX
+            radiusYPixels = radiusXPixels;
+        }
+        else if( radiusXPixels == 0 && radiusYPixels > 0 ) { // if RX unspecified, make it equal to RY
+            radiusXPixels = radiusYPixels;
+        }
+        CGRect rect = path.bounds;
+        if( radiusXPixels > CGRectGetWidth(rect) / 2 ) { // give RX max value of half rect width
+            radiusXPixels = CGRectGetWidth(rect) / 2;
+        }
+
+        if( radiusYPixels > CGRectGetHeight(rect) / 2 ) { // give RY max value of half rect height
+            radiusYPixels = CGRectGetHeight(rect) / 2;
+        }
+
+        CGPathAddRoundedRect(mutablePath,
+#if !(SVGKIT_UIKIT && __IPHONE_OS_VERSION_MAX_ALLOWED < __IPHONE_7_0)
+                nil,
+#endif
+                rect, radiusXPixels, radiusYPixels);
+
+        path = [UIBezierPath bezierPathWithCGPath:mutablePath];
+        CGPathRelease(mutablePath);
+    }
+
+
     return [JAMStyledBezierPath styledPathWithPath:[self applyStrokeAttributes:attributes toPath:path]
                                          fillColor:fillColor
                                        strokeColor:strokeColor
@@ -349,7 +379,7 @@
     path.miterLimit = [attributes miterLimitForKey:@"stroke-miterlimit"];
     path.lineJoinStyle = [attributes lineJoinForKey:@"stroke-linejoin"];
     path.lineCapStyle = [attributes lineCapForKey:@"stroke-linecap"];
-    
+
     return path;
 }
 
@@ -392,7 +422,7 @@
     NSScanner *commandScanner = [NSScanner scannerWithString:commandString];
     NSCharacterSet *knownCommands = [NSCharacterSet characterSetWithCharactersInString:@"MmLlCcVvHhAaSsQqTtZz#"];
     NSMutableArray *commandList = NSMutableArray.new;
-    
+
     NSString *command;
     NSUInteger lastLocation = 0;
     while (!commandScanner.isAtEnd)
@@ -402,7 +432,7 @@
         NSString *trimmedFullCommand = [fullCommand stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
         if (![trimmedFullCommand isEqualToString:@""] && ![trimmedFullCommand.firstCharacter isEqualToString:@"#"])
             [commandList addObject:trimmedFullCommand];
-        
+
         lastLocation = commandScanner.scanLocation;
         if (!commandScanner.isAtEnd)
             commandScanner.scanLocation++;
@@ -439,22 +469,22 @@
         NSScanner *commandScanner = [NSScanner scannerWithString:command];
         if ([@[@"M", @"m"] containsObject:commandScanner.currentCharacter])
             [self addMoveToPointFromCommandScanner:commandScanner toPath:path];
-        
+
         else if ([@[@"L", @"l"] containsObject:commandScanner.currentCharacter])
             [self addLineToPointFromCommandScanner:commandScanner toPath:path];
-        
+
         else if ([@[@"H", @"h"] containsObject:commandScanner.currentCharacter])
             [self addHorizontalLineToPointFromCommandScanner:commandScanner toPath:path];
-        
+
         else if ([@[@"V", @"v"] containsObject:commandScanner.currentCharacter])
             [self addVerticalLineToPointFromCommandScanner:commandScanner toPath:path];
-        
+
         else if ([@[@"C", @"c"] containsObject:commandScanner.currentCharacter])
             [self addCurveToPointFromCommandScanner:commandScanner toPath:path];
-        
+
         else if ([@[@"S", @"s"] containsObject:commandScanner.currentCharacter])
             [self addSmoothCurveToPointFromCommandScanner:commandScanner toPath:path];
-        
+
         else if ([@[@"Q", @"q"] containsObject:commandScanner.currentCharacter])
             [self addQuadCurveToPointFromCommandScanner:commandScanner toPath:path];
 
@@ -463,10 +493,10 @@
 
         else if ([@[@"A", @"a"] containsObject:commandScanner.currentCharacter])
             [self addEllipticalArcToPointFromCommandScanner:commandScanner toPath:path];
-        
+
         else if ([@[@"Z", @"z"] containsObject:commandScanner.currentCharacter]) {
             [path closePath];
-            
+
         }
     }
     return path;
@@ -485,7 +515,7 @@
             [path moveToPoint:relative ? CGPointAddPoints(scannedPoint, path.currentPoint) : scannedPoint];
         }
     };
-    
+
     while (!commandScanner.isAtEnd) {
         if ([commandScanner scanPoint:&scannedPoint]) {
             [path addLineToPoint:relative ? CGPointAddPoints(scannedPoint, path.currentPoint) : scannedPoint];
@@ -518,7 +548,7 @@
     BOOL relative = [commandScanner.initialCharacter isEqualToString:@"h"];
     CGFloat xPosition;
     [commandScanner scanThroughToHyphen];
-    
+
     while (!commandScanner.isAtEnd) {
         if ([commandScanner scanCGFloat:&xPosition]) {
             xPosition += (relative) ? path.currentPoint.x : 0;
@@ -536,7 +566,7 @@
     BOOL relative = [commandScanner.initialCharacter isEqualToString:@"v"];
     CGFloat yPosition;
     [commandScanner scanThroughToHyphen];
-    
+
     while (!commandScanner.isAtEnd) {
         if ([commandScanner scanCGFloat:&yPosition]) {
             yPosition += (relative) ? path.currentPoint.y : 0;
@@ -613,7 +643,7 @@
     BOOL relative = [commandScanner.initialCharacter isEqualToString:@"q"];
     CGPoint controlPoint = CGPointZero;
     CGPoint quadCurveToPoint = CGPointZero;
-    
+
     while (!commandScanner.isAtEnd) {
         if ([commandScanner scanPoint:&controlPoint] && [commandScanner scanPoint:&quadCurveToPoint]) {
             if (relative) {
@@ -651,7 +681,7 @@
                 commandScanner.scanLocation++;
             }
         }
-    }    
+    }
 }
 
 - (void)addEllipticalArcToPointFromCommandScanner:(NSScanner *)commandScanner toPath:(UIBezierPath *)path;
@@ -663,47 +693,47 @@
         CGFloat xAxisRotation = 0;
         BOOL largeArcFlag = 0;
         BOOL sweepFlag = 0;
-        
+
         BOOL didScanRadii = [commandScanner scanPoint:&radii];
         BOOL didScanXAxisRotation = [commandScanner scanCGFloat:&xAxisRotation];
         BOOL didScanLargeArcFlag = [commandScanner scanBool:&largeArcFlag];
         BOOL didScanSweepFlag = [commandScanner scanBool:&sweepFlag];
         BOOL didScanArcEndPoint = [commandScanner scanPoint:&arcEndPoint];
-        
+
         if (!(didScanRadii && didScanXAxisRotation && didScanLargeArcFlag && didScanSweepFlag && didScanArcEndPoint)) {
             return;
         }
         if ([commandScanner.initialCharacter isEqualToString:@"a"]) {
             arcEndPoint = CGPointAddPoints(arcEndPoint, path.currentPoint);
         }
-        
+
         xAxisRotation *= M_PI / 180.f;
         CGPoint currentPoint = CGPointMake(cos(xAxisRotation) * (arcStartPoint.x - arcEndPoint.x) / 2.0 + sin(xAxisRotation) * (arcStartPoint.y - arcEndPoint.y) / 2.0, -sin(xAxisRotation) * (arcStartPoint.x - arcEndPoint.x) / 2.0 + cos(xAxisRotation) * (arcStartPoint.y - arcEndPoint.y) / 2.0);
-        
+
         CGFloat radiiAdjustment = pow(currentPoint.x, 2) / pow(radii.x, 2) + pow(currentPoint.y, 2) / pow(radii.y, 2);
         radii.x *= (radiiAdjustment > 1) ? sqrt(radiiAdjustment) : 1;
         radii.y *= (radiiAdjustment > 1) ? sqrt(radiiAdjustment) : 1;
-        
+
         CGFloat sweep = (largeArcFlag == sweepFlag ? -1 : 1) * sqrt(((pow(radii.x, 2) * pow(radii.y, 2)) - (pow(radii.x, 2) * pow(currentPoint.y, 2)) - (pow(radii.y, 2) * pow(currentPoint.x, 2))) / (pow(radii.x, 2) * pow(currentPoint.y, 2) + pow(radii.y, 2) * pow(currentPoint.x, 2)));
         sweep = (sweep != sweep) ? 0 : sweep;
         CGPoint preCenterPoint = CGPointMake(sweep * radii.x * currentPoint.y / radii.y, sweep * -radii.y * currentPoint.x / radii.x);
-        
+
         CGPoint centerPoint = CGPointMake((arcStartPoint.x + arcEndPoint.x) / 2.0 + cos(xAxisRotation) * preCenterPoint.x - sin(xAxisRotation) * preCenterPoint.y, (arcStartPoint.y + arcEndPoint.y) / 2.0 + sin(xAxisRotation) * preCenterPoint.x + cos(xAxisRotation) * preCenterPoint.y);
-        
+
         CGFloat startAngle = angle(CGPointMake(1, 0), CGPointMake((currentPoint.x-preCenterPoint.x)/radii.x,
                                                                   (currentPoint.y-preCenterPoint.y)/radii.y));
-        
+
         CGPoint deltaU = CGPointMake((currentPoint.x - preCenterPoint.x) / radii.x,
                                      (currentPoint.y - preCenterPoint.y) / radii.y);
         CGPoint deltaV = CGPointMake((-currentPoint.x - preCenterPoint.x) / radii.x,
                                      (-currentPoint.y - preCenterPoint.y) / radii.y);
         CGFloat angleDelta = (deltaU.x * deltaV.y < deltaU.y * deltaV.x ? -1 : 1) * acos(ratio(deltaU, deltaV));
-        
+
         angleDelta = (ratio(deltaU, deltaV) <= -1) ? M_PI : (ratio(deltaU, deltaV) >= 1) ? 0 : angleDelta;
-        
+
         CGFloat radius = MAX(radii.x, radii.y);
         CGPoint scale = (radii.x > radii.y) ? CGPointMake(1, radii.y / radii.x) : CGPointMake(radii.x / radii.y, 1);
-        
+
         [path applyTransform:CGAffineTransformMakeTranslation(-centerPoint.x, -centerPoint.y)];
         [path applyTransform:CGAffineTransformMakeRotation(-xAxisRotation)];
         [path applyTransform:CGAffineTransformMakeScale(1 / scale.x, 1 / scale.y)];
@@ -711,7 +741,7 @@
         [path applyTransform:CGAffineTransformMakeScale(scale.x, scale.y)];
         [path applyTransform:CGAffineTransformMakeRotation(xAxisRotation)];
         [path applyTransform:CGAffineTransformMakeTranslation(centerPoint.x, centerPoint.y)];
-        
+
         if (!commandScanner.isAtEnd) {
             commandScanner.scanLocation++;
         }
