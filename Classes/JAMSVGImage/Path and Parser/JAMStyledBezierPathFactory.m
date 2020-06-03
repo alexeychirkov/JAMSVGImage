@@ -51,6 +51,7 @@
 
 - (JAMStyledBezierPath *)styledPathFromElementName:(NSString *)elementName attributes:(NSDictionary *)attributes;
 {
+    NSLog(@"elementName: %@, attributes: %@", elementName, attributes);
     if ([elementName isEqualToString:@"circle"])
         return [self circleWithAttributes:attributes];
 
