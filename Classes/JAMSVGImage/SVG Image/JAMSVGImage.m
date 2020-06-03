@@ -97,6 +97,7 @@ static NSCache *imageCache = nil;
 {
     JAMSVGImage *image = JAMSVGImage.new;
     JAMSVGParser *parser = [JAMSVGParser.alloc initWithSVGData:svgData];
+    NSLog(@"parser: %@", parser);
     if (!parser) return nil;
     
     [parser parseSVGDocument];
