@@ -326,6 +326,8 @@
     UIColor *strokeColor = strokeColorStringValue ? [UIColor colorFromString:strokeColorStringValue] : [attributes strokeColorForKey:@"stroke"];
     CGFloat strokeWidth = [attributes strokeWeightForKey:@"stroke-width"];
 
+    NSLog(@"path before: %@", path);
+    NSLog(@"attributes: %@", attributes);
     CGFloat radiusXPixels = [attributes floatForKey:@"rx"];
     CGFloat radiusYPixels = [attributes floatForKey:@"ry"];
     if (radiusXPixels > 0 || radiusYPixels > 0) {
@@ -352,6 +354,7 @@
                 rect, radiusXPixels, radiusYPixels);
 
         path = [UIBezierPath bezierPathWithCGPath:mutablePath];
+        NSLog(@"path after: %@", path);
         CGPathRelease(mutablePath);
     }
 
